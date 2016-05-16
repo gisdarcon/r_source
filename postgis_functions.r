@@ -21,19 +21,30 @@ library(rgdal)
 # Port = 5432
 # ReadOnly = 0
 
+
 ########################################################################################################
 #                                            Create Database                                           #
 ########################################################################################################
-create_db <- function(db_name, username, pass){
+create_db <- function(db_name, username, pass, spacetable = "DEFAULT" , extensions = NULL){
   
-  system(paste("createdb -U", username, db_name))
-  con <- odbcConnect(db_name, uid = username, pwd=pass)
+  if (spacetable=="DEFAULT"){
+    system(paste("createdb -U", username, db_name))
+    con <- odbcConnect(db_name, uid = username, pwd=pass)
+  }
+  else {
+    system(paste("createdb -U", username, db_name, "-D", spacetable))
+    print(paste("createdb -U", username, db_name, "-D", spacetable))
+    con <- odbcConnect(db_name, uid = username, pwd=pass)
+  }
   
-  odbcQuery(con, "CREATE EXTENSION POSTGIS;")
-  # odbcQuery(con, "CREATE EXTENSION POSTGIS_topology;")
-  # odbcQuery(con, "CREATE EXTENSION pgrouting;")
-  
-  print(sqlQuery(con, "SELECT PostGIS_full_version();"))
+  # Adds pg extensions - extentions = c("POSTGIS","POSTGIS_topology","pgrouting")
+  if (!is.null(extensions)){
+    for (i in extensions){
+      odbcQuery(con, paste("CREATE EXTENSION", i, ";"))
+    }
+    print(sqlQuery(con, "SELECT PostGIS_full_version();"))
+  }
+  odbcClose(con)
 }
 
 #######################################################################################################
