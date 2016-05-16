@@ -66,10 +66,7 @@ import_csv <- function(con, working_dir, table_name, csv_name, csv_types, sep){
 #######################################################################################################
 #                                     Import shapefiles in POSTGIS                                    #
 #######################################################################################################
-import_or_append <- function(con, working_dir, table_name, shp_names_ext){
-  
-  query <- paste("DROP TABLE IF EXISTS ", table_name, ";", sep = "")
-  odbcQuery(con, query)
+import_or_append <- function(con, working_dir, table_name, shp_names_ext, append = FALSE){
   
   pattern <- "\\(|\\)|:|;|,|&"
   shp_names <- list.files(working_dir)
@@ -80,43 +77,51 @@ import_or_append <- function(con, working_dir, table_name, shp_names_ext){
   username <- unlist(strsplit(unlist(strsplit(attributes(con)$connection.string, ";"))[5], "="))[2]
   db_name <- unlist(strsplit(unlist(strsplit(attributes(con)$connection.string, ";"))[2], "="))[2]
   
-  if (length(shp_names) > 0){
+  if (length(shp_names) > 0 & append == FALSE){
     s2p <- paste('shp2pgsql -c -s 27700 -W "latin1" "', working_dir, '/', shp_names[1], '" ', table_name, ' | psql -U ', username, ' -d ', db_name, ' -w', sep="")
     system(s2p)
     
-    if (length(shp_names) > 1){
+    if (length(shp_names) > 1 ){
       for (i in shp_names[2:length(shp_names)]){
         s2p <- paste('shp2pgsql -a -s 27700 -W "latin1" "', working_dir, '/', i, '" ', table_name, ' | psql -U ', username, ' -d ', db_name, ' -w', sep="")
         system(s2p)
       }
     }
-    
-    query <- paste("CREATE INDEX ON", table_name, "USING GIST(geom);")
-    odbcQuery(con, query)
-    ################################# Correct invalid geometries #####################################
-    
-    query <- paste("SELECT gid, ST_IsValidReason(geom) FROM", table_name, "WHERE ST_IsValid(geom)=false;")
-    results <- sqlQuery(con, query)
-    
-    if (nrow(results) > 0){
-      query <- paste("UPDATE", table_name, "SET geom = ST_MakeValid(geom) WHERE ST_IsValid(geom)=false;")
-      corrected <- odbcQuery(con, query)
-      if (corrected == 1){
-        print(paste(nrow(results), " invalid geometries were found and corrected"))
-      } else if (corrected == -1){
-        print(paste(nrow(results), " invalid geometries were found but it was not possible to be corrected.",
-                    "Perhaps use ST_Buffer(geom, 0) to correct geometry, e.g.",
-                    "CREATE TABLE my_table2 AS SELECT my_field, ST_Buffer(geom, 0) AS geom FROM my_table1;",
-                    "Then check geometry by: SELECT gid, ST_IsValidReason(geom) FROM my_table2 WHERE ST_IsValid(geom)=false;"))
-      }
-    }
     print(paste("The shapefile ", shp_names, "was found based on the pattern provided by the parameter shp_names_ext"))
-    return(results)
-    ###################################################################################################
   } else {
-    print("No shapefiles were found")
+    if (length(shp_names) > 0 & append == TRUE){
+      s2p <- paste('shp2pgsql -a -s 27700 -W "latin1" "', working_dir, '/', shp_names[1], '" ', table_name, ' | psql -U ', username, ' -d ', db_name, ' -w', sep="")
+      system(s2p)
+    } else {
+      print("No shapefiles were found")
+    }
   }
-  odbcCloseAll()
+}
+
+#######################################################################################################
+#                                     Correct invalid geometries                                      #
+#######################################################################################################
+check_geometries <- function(con, table_name){
+  
+  query <- paste("CREATE INDEX ON", table_name, "USING GIST(geom);")
+  odbcQuery(con, query)
+  
+  query <- paste("SELECT gid, ST_IsValidReason(geom) FROM", table_name, "WHERE ST_IsValid(geom)=false;")
+  results <- sqlQuery(con, query)
+  
+  if (nrow(results) > 0){
+    query <- paste("UPDATE", table_name, "SET geom = ST_MakeValid(geom) WHERE ST_IsValid(geom)=false;")
+    corrected <- odbcQuery(con, query)
+    if (corrected == 1){
+      print(paste(nrow(results), " invalid geometries were found and corrected"))
+    } else if (corrected == -1){
+      print(paste(nrow(results), " invalid geometries were found but it was not possible to be corrected.",
+                  "Perhaps use ST_Buffer(geom, 0) to correct geometry, e.g.",
+                  "CREATE TABLE my_table2 AS SELECT my_field, ST_Buffer(geom, 0) AS geom FROM my_table1;",
+                  "Then check geometry by: SELECT gid, ST_IsValidReason(geom) FROM my_table2 WHERE ST_IsValid(geom)=false;"))
+    }
+  }
+  return(results)
 }
 
 #######################################################################################################
