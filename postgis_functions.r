@@ -50,17 +50,16 @@ create_db <- function(db_name, username, pass, spacetable = "DEFAULT" , extensio
 #######################################################################################################
 #                                     Import lookup table - CSV in POSTGIS                            #
 #######################################################################################################
-import_csv <- function(con, working_dir, table_name, csv_name, csv_types, sep){
-  
-  query <- paste("DROP TABLE IF EXISTS ", table_name, ";", sep = "")
-  odbcQuery(con, query)
+import_csv <- function(con, working_dir, table_name, csv_name, csv_types, sep, drop_table = TRUE){
+  if (drop_table == TRUE){
+    query <- paste("DROP TABLE IF EXISTS ", table_name, ";", sep = "")
+    odbcQuery(con, query)
+  }
   
   query <- paste("CREATE TABLE ", table_name, ' (', csv_types, ')',";", sep = "")
   odbcQuery(con, query)
   
-  # '/Volumes/LaCie/ILRR_Data/Raw/Blackpool.csv' DELIMITER ',' CSV; "
   query <- paste("COPY ", table_name, " FROM '", working_dir, "/", csv_name, "' DELIMITER '", sep,"' CSV HEADER", ";", sep = "")
-  print(query)
   odbcQuery(con, query)
 }
 #######################################################################################################
