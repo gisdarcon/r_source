@@ -66,7 +66,7 @@ import_csv <- function(con, working_dir, table_name, csv_name, csv_types, sep){
 #######################################################################################################
 #                                     Import shapefiles in POSTGIS                                    #
 #######################################################################################################
-import_or_append <- function(con, working_dir, table_name, shp_names_ext, append = FALSE){
+import_or_append <- function(con, working_dir, table_name, shp_names_ext, append = FALSE, index =TRUE){
   
   pattern <- "\\(|\\)|:|;|,|&"
   shp_names <- list.files(working_dir)
@@ -96,15 +96,16 @@ import_or_append <- function(con, working_dir, table_name, shp_names_ext, append
       print("No shapefiles were found")
     }
   }
+  if (index == TRUE){
+    query <- paste("CREATE INDEX ON", table_name, "USING GIST(geom);")
+    odbcQuery(con, query)
+  }
 }
 
 #######################################################################################################
 #                                     Correct invalid geometries                                      #
 #######################################################################################################
 check_geometries <- function(con, table_name){
-  
-  query <- paste("CREATE INDEX ON", table_name, "USING GIST(geom);")
-  odbcQuery(con, query)
   
   query <- paste("SELECT gid, ST_IsValidReason(geom) FROM", table_name, "WHERE ST_IsValid(geom)=false;")
   results <- sqlQuery(con, query)
